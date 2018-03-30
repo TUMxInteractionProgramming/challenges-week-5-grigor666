@@ -80,6 +80,12 @@ function selectTab(tabId) {
  */
 function toggleEmojis() {
     $('#emojis').toggle(); // #toggle
+	// #10 add all emojis from the array to emojis menu
+	var emojisText = $('#emojis').text();
+	for (i=0; i < emojis.length; i++) {
+		emojisText = emojisText + " " + emojis[i] ;
+	}
+	$('#emojis').text(emojisText);
 }
 
 /**
@@ -106,18 +112,29 @@ function sendMessage() {
     //var message = new Message("Hello chatter");
 
     // #8 let's now use the #real message #input
-    var message = new Message($('#message').val());
-    console.log("New message:", message);
+	
+	// #10 block empty messages
+	var userText = $('#message').val();
+	if (userText.length > 0) {
+		var message = new Message(userText);
+		console.log("New message:", message);	
+		
+		// #10 push message into currentChannel's messages array
+		currentChannel.messages.push(message);
+		
+		// #10 increase number of messages for currentChannel
+		currentChannel.messageCount += 1;
+		
+		// #8 nicer #message #append with jQuery:
+		$('#messages').append(createMessageElement(message));
 
-    // #8 nicer #message #append with jQuery:
-    $('#messages').append(createMessageElement(message));
+		// #8 #messages will #scroll to a certain point if we apply a certain height, in this case the overall scrollHeight of the messages-div that increases with every message;
+		// it would also #scroll to the bottom when using a very high number (e.g. 1000000000);
+		$('#messages').scrollTop($('#messages').prop('scrollHeight'));
 
-    // #8 #messages will #scroll to a certain point if we apply a certain height, in this case the overall scrollHeight of the messages-div that increases with every message;
-    // it would also #scroll to the bottom when using a very high number (e.g. 1000000000);
-    $('#messages').scrollTop($('#messages').prop('scrollHeight'));
-
-    // #8 #clear the #message input
-    $('#message').val('');
+		// #8 #clear the #message input
+		$('#message').val('');
+	}
 }
 
 /**
@@ -140,21 +157,34 @@ function createMessageElement(messageObject) {
         messageObject.createdOn.toLocaleString() +
         '<em>' + expiresIn+ ' min. left</em></h3>' +
         '<p>' + messageObject.text + '</p>' +
-        '<button>+5 min.</button>' +
+        '<button class="accent">+5 min.</button>' +
         '</div>';
 }
 
 
-function listChannels() {
+function listChannels(criterion) {
     // #8 #channel #onload
     //$('#channels ul').append("<li>New Channel</li>")
-
-    // #8 #channels make five #new channels
-    $('#channels ul').append(createChannelElement(yummy));
-    $('#channels ul').append(createChannelElement(sevencontinents));
-    $('#channels ul').append(createChannelElement(killerapp));
-    $('#channels ul').append(createChannelElement(firstpersononmars));
-    $('#channels ul').append(createChannelElement(octoberfest));
+	
+	// #10 ensures channels are not duplicated in the list
+	$('ul').empty();
+	$('ul').append('<button id="FAB" class="md-whiteframe-6dp" onclick="createNewChannel()"><i class="fa fa-plus"></i></button>');
+	// #10 sorting channels by the criterion
+	if (criterion == "new") {
+		channels.sort(compareDate);
+	}
+	else if (criterion == "trending") {
+		channels.sort(compareMessages);
+	} else {
+		channels.sort(compareFavorites);
+	}
+	
+	// #10 append channels to channel list using for loop
+	for (i=0; i < channels.length; i++) {
+		$('#channels ul').append(createChannelElement(channels[i]));
+	}
+	
+	
 }
 
 /**
@@ -192,4 +222,101 @@ function createChannelElement(channelObject) {
 
     // return the complete channel
     return channel;
+}
+
+// # 10 Comparing functions
+
+function compareDate(channel1, channel2) {
+	if (channel1.createdOn > channel2.createdOn) {
+		return -1;
+	} else {
+		return 1;
+	}
+}
+
+function compareMessages(channel1, channel2) {
+	if (channel1.messageCount > channel2.messageCount) {
+		return -1;
+	} else {
+		return 1;
+	}
+}
+
+function compareFavorites(channel1, channel2) {
+	if (channel1.starred > channel2.starred) {
+		return -1;
+	} else {
+		return 1;
+	}
+}
+
+// #10 create new channel using floating action button
+function createNewChannel() {
+	$('#messages').empty();
+	$('#app-bar-id').empty();
+	$('#app-bar-id').append(createAppBar());
+	$('#sendButton').remove();
+	$('#createButton').remove();
+	$('#chat-bar').append('<button id="createButton" class="accent" onclick="createChannel()">create</button>');
+}
+
+function createAppBar() {
+	return '<input type="text" placeholder="Enter a #ChannelName" id="newChannel"> <button id="abort" onclick="restoreChannel()"><i class="fa fa-times">abort</i></button>'
+}
+
+
+
+function restoreChannel() {
+	$('#messages').empty();
+	$('#app-bar-id').empty();
+	$('#app-bar-id').append(restoreAppBar());
+	$('#createButton').remove();
+	$('#chat-bar').append('<button id="sendButton" class="accent" onclick="sendMessage()"><i class="fa fa-arrow-right"></i></button>');
+	
+}
+
+function restoreAppBar() {
+	return '<span id="channel-name">' + currentChannel.name	+ ' ' + 
+		'</span><small id="channel-location"> by <strong>' +
+		currentChannel.createdBy +
+		'</strong></small><i class="fa fa-star" onclick="star()"></i>'
+}
+	
+
+function createChannel() {	
+	var userInputChannel = $('#newChannel').val();
+	var userInputMessage = $('#message').val();
+	if (userInputMessage.length > 0) {
+		if ((userInputChannel.length > 0) && (userInputChannel[0] == '#') && (userInputChannel.search(' ') == -1)) {
+			var message = new Message(userInputChannel);
+			console.log(message);
+			var newChannelObj = new Channel(userInputChannel, message);
+			/*var newChannelObj = {
+				name: userInputChannel,
+				createdOn: new Date(), 
+				createdBy: "horse.cow.chicken",
+				starred: false,
+				expiresIn: 160,
+				messageCount: 32221,
+				messages: [message]
+			};*/
+			console.log(newChannelObj);
+			channels.push(newChannelObj);
+			currentChannel = newChannelObj;
+			$('#channels ul').append(createChannelElement(newChannelObj));
+			restoreChannel();
+			$('#message').val('');
+			$('#messages').append(createMessageElement(message));
+		}
+	}
+}
+	
+function Channel(name, message) {
+	this.name = name;
+	this.createdOn = new Date();
+	this.createdBy = message.createdBy;
+	this.starred = false;
+	this.expiresIn = 160;
+	this.messageCount = 32221;
+	this.messages = [message];
 }
